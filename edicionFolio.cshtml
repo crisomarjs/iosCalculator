@@ -1,0 +1,796 @@
+@using DS.DocFlow.LogicaNegocio.Entities;
+@model DS.DocFlow.Web.UI.Models.TransferenciasModel
+@using System.Xml.Linq
+
+
+@{
+    ViewBag.Title = "EdicionFolio";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+
+    /** Parametrizacion segun cliente **/
+    Cfg_Configuracion cfg = null;
+    cfg = Cfg_Configuracion.GetOne("Nom_prefijo");
+
+    /** Obtencion de valores para peso y longitud de cajas **/
+    Cfg_Configuracion cfgPesoCaja = null;
+    Cfg_Configuracion cfgLongitudCaja = null;
+    cfgPesoCaja = Cfg_Configuracion.GetOne("Peso_Caja");
+    cfgLongitudCaja = Cfg_Configuracion.GetOne("Longitud_Caja");
+
+    // Intenta convertir el valor a un número, usa un valor predeterminado si falla.
+    double pesoCaja, longitudCaja;
+    try
+    {
+        pesoCaja = double.Parse(cfgPesoCaja?.Configuracion_Valor ?? "0");
+        longitudCaja = double.Parse(cfgLongitudCaja?.Configuracion_Valor ?? "0");
+
+    }
+    catch (FormatException)
+    {
+        pesoCaja = 15;
+        longitudCaja = 0.41;
+    }
+}
+
+@{
+    string rutaRedirec = Href("~/Transferencias");
+    if (Request.UrlReferrer != null && !string.IsNullOrEmpty(Request.UrlReferrer.PathAndQuery))
+    {
+        //rutaRedirec = Request.UrlReferrer.PathAndQuery;
+        //rutaRedirec = Request.AppRelativeCurrentExecutionFilePath;
+        if (Request.UrlReferrer.PathAndQuery.Contains("Primaria"))
+        {
+            rutaRedirec += "/?Modulo=DFPrimaria";
+        }
+        if (Request.UrlReferrer.PathAndQuery.Contains("SecundariaBaja") || Request.UrlReferrer.PathAndQuery.Contains("bajasecundaria"))
+        {
+            rutaRedirec += "/?Modulo=DFSecundariaBaja";
+        }
+        else if (Request.UrlReferrer.PathAndQuery.Contains("Secundaria"))
+        {
+            rutaRedirec += "/?Modulo=DFSecundaria";
+        }
+    }
+}
+
+<h2><span><strong>Edición Folio</strong></span></h2>
+@if (!Model.CargadoCorrecto)
+{
+    <center>
+        <p><h2>@Model.Mensajes</h2></p>
+        <br />
+        @Html.ActionLink("Ver Folios de Transferencia", "index", "Transferencia", new { @class = "LinkButton" })
+    </center>
+    return;
+}
+
+@{
+    string nivelFirma = string.Empty;
+    if (!Model.Folio.Folio_FirmaA.HasValue && !Model.Folio.Folio_FirmaB.HasValue)
+    {
+        nivelFirma = "1";
+    }
+    if (Model.Folio.Folio_FirmaA.HasValue && Model.Folio.Folio_FirmaA.Value)
+    {
+        nivelFirma = "2";
+    }
+    if (Model.Folio.Folio_FirmaB.HasValue && Model.Folio.Folio_FirmaB.Value)
+    {
+        nivelFirma = "3";
+    }
+}
+
+@Scripts.Render("~/js/get?url=" + HttpUtility.UrlEncode("~/js/jsTransferencias/jsTransferenciasEdicion.js"))
+<div>
+    <div class="text-right">
+        <a class="LinkButton" href="@rutaRedirec" id="btdBack">
+            <i class="fa fa-arrow-left fa-lg fa-fw"></i>@CultureResources.Idioma.Boton_Regresar
+        </a>
+    </div>
+</div>
+<input type="hidden" id="hdNivelFirma" value="@nivelFirma" />
+<input type="hidden" id="hdSerieId" value="@ViewBag.SerieId" />
+<input type="hidden" id="hdFase" value="@ViewBag.Fase" />
+<input type="hidden" id="hdFolioId" value="@Model.Folio.Folio_Id" />
+<div>
+    <div>
+        <div class="col-lg-8">
+            <table>
+                <tr>
+                    <td style="width: 150px;"><span><strong>@CultureResources.Idioma.CkEditor_NombreSerie</strong></span></td>
+                    <td>@ViewBag.Serie</td>
+
+
+                </tr>
+                <tr>
+                    <td>
+                    </td>
+                    <td>
+
+                        @ViewBag.SerieCompleta
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 150px;"><span><strong>@CultureResources.Idioma.Reporte_Folio:</strong></span></td>
+                    @if (Model.Folio.Folio_Estatus == null)
+                    {
+                        <td>
+                            <select id="selFolio" style="width:150px;">
+                                <option id="lblFolio" width="100" value=0>Nuevo</option>
+                                @foreach (DS.DocFlow.LogicaNegocio.Entities.Ope_TransferenciaFolio folio in ViewBag.FoliosDisponibles)
+                                {
+                                    <option id="lblFolio" value="@folio.Folio_Id">@folio.Folio_Folio</option>
+                                }
+                            </select>
+                        </td>
+                    }
+                    else
+                    {
+                        <td><span id="lblFolio">@((Model.Folio != null) ? Model.Folio.Folio_Folio : CultureResources.Idioma.Comun_ninguno)</span></td>
+                    }
+                </tr>
+                <tr>
+                    <td style="width: 150px;"><span><strong>Estatus folio:</strong></span></td>
+                    <td><span id="lblFolio">@((Model.Folio != null) ? Model.Folio.Folio_Estatus : CultureResources.Idioma.Comun_ninguno)</span></td>
+                </tr>
+                <tr>
+                    <td style="width: 150px;"><span><strong>@CultureResources.Idioma.ValePrestamo_Observaciones</strong></span></td>
+                    <td><span id="lblFolio">@((Model.Folio != null) ? Model.Folio.Folio_Observaciones : "")</span></td>
+                </tr>
+                <tr>
+                    <td>
+                        <span>
+                            <strong>
+                                <input id="rtbCajaFisica" type="radio" value="" name="valCaja" @((Model.Folio != null ? (Model.Folio.Folio_CajaFisica.Value ? "checked='checked'" : "") : "checked='checked'")) @(!Model.MostrarGuardar ? "disabled='disabled'" : "") /> <label for="rtbCajaFisica" style="display: inline-block">@CultureResources.Idioma.AuditarCajas_lbl_CajaFisica</label>
+                            </strong>
+                        </span>
+                    </td>
+                    <!-- Ocultar si es cliente PRODECON -->
+                    @if (cfg.Configuracion_Valor.ToLower() != "prodecon")
+                    {
+                        <td>
+                            <span>
+                                <strong>
+                                    <input id="rtbCajaSistema" type="radio" value="" name="valCaja" @((Model.Folio != null ? (!Model.Folio.Folio_CajaFisica.Value ? "checked='checked'" : "") : "")) @(!Model.MostrarGuardar ? "disabled='disabled'" : "") /><label for="rtbCajaSistema" style="display: inline-block; margin-left: 5px;">@CultureResources.Idioma.AuditarCajas_lbl_CajaSistema</label>
+                                </strong>
+                            </span>
+                        </td>
+                    }
+                </tr>
+                <tr id="rowCajas">
+                    <td style="width: 150px;">
+                        <!-- Cambiar texto si es cliente PRODECON -->
+                        @if (cfg.Configuracion_Valor.ToLower() == "prodecon")
+                        {
+                            <span><strong> @CultureResources.Idioma.AuditarCajas_lbl_NumeroCaja_Prodecon </strong></span>
+                        }
+                        else
+                        {
+                            <span><strong> @CultureResources.Idioma.AuditarCajas_lbl_NumeroCaja </strong></span>
+                        }
+                    </td>
+                    <td>
+                        @if (cfg.Configuracion_Valor.ToLower() == "prodecon")
+                        {
+                            <!-- PRODECON -->
+                            <input type="text" id="txtCaja" width="200" @(!Model.MostrarGuardar ? "disabled='disabled'" : "") readonly />
+                        }
+                        else
+                        {
+                            <!-- Codigo base -->
+                            <input type="text" id="txtCaja" width="200" value="@(Model.Folio.Folio_Id.ToString() != "0" ? (!String.IsNullOrEmpty(Model.Folio.Folio_Caja) ? Model.Folio.Folio_Caja : "Cajas sistema") : null)" @(!Model.MostrarGuardar ? "disabled='disabled'" : "") />
+                        }
+
+                        @if (Model.Folio != null && Model.Folio.Folio_Caja_Id.HasValue)
+                        {
+                            <input type="hidden" id="hdCajaId" value="@Model.Folio.Folio_Caja_Id.Value" />
+                            <a id="aBuscarCaja" class="a-link" title="@CultureResources.Idioma.Comun_Master_Busqueda" @(!Model.MostrarGuardar ? "disabled='disabled'" : "")><i class="fa fa-search"></i></a>
+                        }
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 150px;"><span><strong> @CultureResources.Idioma.Comun_Peso: </strong></span></td>
+                    @if (cfg.Configuracion_Valor.ToLower() == "prodecon")
+                    {
+                        <!-- PRODECON -->
+                        <td><input type="number" id="txtKilos" width="100" min="0" @(!Model.MostrarGuardar ? "disabled='disabled'" : "")>&nbsp;<span>Kg</span></td>
+                    }
+                    else
+                    {
+                        <!-- Codigo base -->
+                        <td><input type="number" id="txtKilos" width="100" value="@((Model.Folio != null) ? Model.Folio.Folio_Kilogramos : 0)" min="0" @(!Model.MostrarGuardar ? "disabled='disabled'" : "")>&nbsp;<span>Kg</span></td>
+                    }
+                </tr>
+                <tr>
+                    <td style="width: 150px;"><span><strong>@CultureResources.Idioma.CamposEvento_Longitud:</strong></span></td>
+                    @if (cfg.Configuracion_Valor.ToLower() == "prodecon")
+                    {
+                        <!-- PRODECON -->
+                        <td><input type="number" id="txtMetros" width="100" min="0" @(!Model.MostrarGuardar ? "disabled='disabled'" : "")>&nbsp;<span>Metros lineales</span></td>
+                    }
+                    else
+                    {
+                        <!-- Codigo base -->
+                        <td><input type="number" id="txtMetros" width="100" value="@((Model.Folio != null) ? Model.Folio.Folio_Longitud : 0)" min="0" @(!Model.MostrarGuardar ? "disabled='disabled'" : "")>&nbsp;<span>Metros lineales</span></td>
+                    }
+                </tr>
+
+            </table>
+        </div>
+
+        <div id="pnlFolio" class="col-lg-4">
+            <div>
+                <div class="panel p-default">
+                    <div class="p-head">
+                        Documento del Folio.
+                        <table id="tDocumentosFolio" class="table table-striped table-bordered table-hover" style="border-collapse: collapse; width: 100% !important;" border="0" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        @CultureResources.Idioma.Expediente_documento
+                                    </th>
+                                    <th>Tipo Documental</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    bool FirmaCargada = false;
+                                }
+                                @if (Model.AdjuntosFolio.Count > 0)
+                                {
+                                    foreach (var adjunto in Model.AdjuntosFolio)
+                                    {
+                                        string urlDescargarDocumento = Href("~/Documento/Descargar?BdId=" + adjunto.CadenaConexionId + "&AdjuntoId=" + adjunto.Adjunto.ExpedienteAdjunto_Id);
+                                        string urlDetalleDoc = Href("~/Documento/Detalle?BdId=" + adjunto.CadenaConexionId + "&AdjuntoId=" + adjunto.Adjunto.ExpedienteAdjunto_Id);
+                                        <tr>
+                                            <td>
+                                                @if (!FirmaCargada)
+                                                {
+                                                    <input type="hidden" id="hdAdId" value="@adjunto.Adjunto.ExpedienteAdjunto_Id" />
+                                                    <input type="hidden" id="hdAdBdId" value="@adjunto.CadenaConexionId" />
+                                                    FirmaCargada = true;
+                                                }
+                                                @adjunto.NombreArchivo
+                                            </td>
+                                            <td>
+                                                @{
+                                                    string strTipoDoc = string.Empty;
+                                                    if (adjunto.DocumentosAdjunto.Count > 0)
+                                                    {
+                                                        strTipoDoc = adjunto.DocumentosAdjunto[0].NombreDocumentoTipo;
+                                                    }
+                                                    else
+                                                    {
+                                                        strTipoDoc = CultureResources.Idioma.Captura_msgNoEspecificado;
+                                                    }
+                                                    strTipoDoc = strTipoDoc.Replace("Ficha Tecnica", "Ficha Técnica");
+                                                }
+                                                @strTipoDoc
+                                            </td>
+                                            <td>
+                                                <table>
+                                                    <tr>
+                                                        <td>
+                                                            <a href="@urlDescargarDocumento" title="@CultureResources.Idioma2.DetalleDocumentoDescargaDoc @adjunto.NombreArchivo" id="linkDescargarDocumento">
+                                                                <i class="fa fa-download fa-2x"></i>
+                                                            </a>
+                                                        </td>
+                                                        <td>
+                                                            <a href="@urlDetalleDoc" title="@CultureResources.Idioma2.DetalleDocumentoInfoDocumento" id="linkDescargarDocumento">
+                                                                <i class="fa fa-info-circle fa-2x" title='Información'></i>
+                                                            </a>
+                                                        </td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="3" class="text-center">@CultureResources.Idioma.Mensaje_SinInformacion</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<div>
+    <div class="col-lg-12">
+        <h3><span><strong>Lista de expedientes en Folio</strong></span></h3>
+    </div>
+    <div class="col-lg-12">
+        <div style="min-height: 50px !important; max-height: 250px !important; height: auto; overflow:auto">
+            @if (ViewBag.EsBaja)
+            {
+                <table id="tExpedientesBaja" class="table table-striped table-bordered table-hover" style="border-collapse: collapse; width: 100% !important;" border="0" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>@CultureResources.Idioma.Comun_Expediente</th>
+                            @*<th>Fecha Transferencia</th>*@
+                            <th>Fecha Baja</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Expedientes.Count > 0)
+                        {
+                            foreach (var item in Model.Expedientes)
+                            {
+                                <tr>
+                                    <td>@item.Expediente.Expediente.Expediente_Expediente</td>
+                                    @*<td>@item.Expediente.Expediente.Expediente_Fecha</td>*@
+                                    <td>@item.Expediente.Expediente.Expediente_FechaCierre</td>
+                                </tr>
+                            }
+                        }
+                </table>
+            }
+            else
+            {
+                <table id="tExpedientes" class="table table-striped table-bordered table-hover" style="border-collapse: collapse; width: 100% !important;" border="0" cellspacing="0">
+                    <thead>
+                        <tr>
+                            @{ bool AllSelected = true;
+                                if (Model.Expedientes.FindAll(x => x.PerteneceFolio == false).Count > 0)
+                                {
+                                    AllSelected = false;
+                                }
+
+                                string identificador = null;
+                                string legajos = null;
+
+                                if (cfg.Configuracion_Valor.ToLower() == "prodecon")
+                                {
+                                    identificador = "Número de expediente";
+                                    legajos = "Número de legajos";
+                                }
+                                else
+                                {
+                                    identificador = CultureResources.Idioma.Comun_FileFolder;
+                                    legajos = "Número de folios";
+                                }
+
+                            }
+                            <th class="theadcheck" style="text-align: center; vertical-align: middle" rowspan="2"><input type="checkbox" id="chkall" title="@CultureResources.Idioma.Consultar_Busqueda_lbl_SeleccionarTodo" @(AllSelected ? "checked='checked'" : "") @(!Model.MostrarGuardar ? "disabled='disabled'" : "") /></th>
+                            <th style="text-align: center; vertical-align: middle" rowspan="2">Número de caja</th>
+                            @*<th style="text-align: center; vertical-align: middle" rowspan="2">@CultureResources.Idioma.Comun_FileFolder</th>*@
+                            <th style="text-align: center; vertical-align: middle" rowspan="2">@identificador</th>
+                            <th style="text-align: center; vertical-align: middle" rowspan="2">Clasificación archivística</th>
+                            <th style="text-align: center; vertical-align: middle" rowspan="2">Asunto</th>
+                            <th style="text-align: center; vertical-align: middle" colspan="2">Período de trámite</th>
+                            @*<th style="text-align: center; vertical-align: middle" rowspan="2">Número de folios</th>*@
+                            <th style="text-align: center; vertical-align: middle" rowspan="2">@legajos</th>
+                            <th style="text-align: center; vertical-align: middle" colspan="3">Valor documental</th>
+                            <th style="text-align: center; vertical-align: middle" colspan="3">Vigencia documental</th>
+                            <th style="text-align: center; vertical-align: middle" colspan="2">Clasificación de la información</th>
+                        </tr>
+                        <tr>
+                            <th style="text-align: center; vertical-align: middle">Año de apertura</th>
+                            <th style="text-align: center; vertical-align: middle">Año de cierre</th>
+                            <th style="text-align: center; vertical-align: middle">Administrativo</th>
+                            <th style="text-align: center; vertical-align: middle">Legal</th>
+                            <th style="text-align: center; vertical-align: middle">Fiscal-Contable</th>
+                            <th style="text-align: center; vertical-align: middle">Años trámite</th>
+                            <th style="text-align: center; vertical-align: middle">Años concentración</th>
+                            <th style="text-align: center; vertical-align: middle">Total años</th>
+                            <th style="text-align: center; vertical-align: middle">Información reservada</th>
+                            <th style="text-align: center; vertical-align: middle">Información confidencial</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Expedientes.Count > 0)
+                        {
+                            foreach (var item in Model.Expedientes)
+                            {
+                                <tr>
+                                    <td class="theadcheck" style="text-align: center; vertical-align: middle">
+                                        <!-- PRODECON: se agregan class y data-id para calcular peso y dimensiones automaticamente -->
+                                        @if (cfg.Configuracion_Valor.ToLower() == "prodecon")
+                                        {
+                                            <input type="checkbox" name="checkItem" id="@(item.Expediente.ExpedienteFolioEdicionTrans.Expediente_Id.ToString() + "_" + item.Expediente.CadenaConexionId.ToString())"
+                                                   title="@CultureResources.Idioma2.Comun_Seleccionar" checked='checked' @(!Model.MostrarGuardar ? "disabled='disabled'" : "")
+                                                   class="expediente-checkbox"
+                                                   data-id="@item.Expediente.ExpedienteFolioEdicionTrans.Contenedor_Contenedor" />
+                                        }
+                                        else
+                                        {
+                                            <!-- Codigo base -->
+                                            <input type="checkbox" name="checkItem" id="@(item.Expediente.ExpedienteFolioEdicionTrans.Expediente_Id.ToString() + "_" + item.Expediente.CadenaConexionId.ToString())"
+                                                   title="@CultureResources.Idioma2.Comun_Seleccionar" checked='checked' @(!Model.MostrarGuardar ? "disabled='disabled'" : "") />
+                                        }
+                                        <!-- PRODECON: Se modifico para obtener el num cajas de xml -->
+                                        @if (item.Expediente.ExpedienteFolioEdicionTrans.Expediente_Xml != null)
+                                        {
+                                            // Intentamos parsear el XML y buscar "Cantidad de Cajas"
+                                            var xmlDoc = XDocument.Parse(item.Expediente.ExpedienteFolioEdicionTrans.Expediente_Xml);
+                                            var numCajas = xmlDoc.Descendants("Element")
+                                                .FirstOrDefault(x => (string)x.Attribute("name") == "Núm. Caja(s)")
+                                                ?.Element("value")?.Value;
+
+                                            if (!string.IsNullOrWhiteSpace(numCajas))
+                                            {
+                                                // Mostrar el valor si existe
+                                            <td style="text-align: center; vertical-align: middle">@numCajas</td>
+                                            }
+                                            else
+                                            {
+                                                // Mostrar un valor predeterminado si no existe
+                                                <td style="text-align: center; vertical-align: middle">@(item.Expediente.ExpedienteFolioEdicionTrans.Contenedor_Contenedor ?? string.Empty)</td>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Mostrar un valor predeterminado si el XML es nulo
+                                            <td style="text-align: center; vertical-align: middle">@(item.Expediente.ExpedienteFolioEdicionTrans.Contenedor_Contenedor ?? string.Empty)</td>
+                                        }
+
+
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Expediente_Folder</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Clasificacion</td>
+                                        @if (item.Expediente.Metedatos != null)
+                                        {
+                                            if (@item.Expediente.Metedatos.Exists(x => x.Metadato_Descripcion.Equals("asunto", StringComparison.CurrentCultureIgnoreCase)))
+                                            {
+                                                <td style="text-align: center; vertical-align: middle">@item.Expediente.Metedatos.Find(x => x.Metadato_Descripcion.Equals("asunto", StringComparison.CurrentCultureIgnoreCase)).Metadato_Valor</td>
+                                            }
+                                            else
+                                            {
+                                                <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Asunto</td>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Asunto</td>
+                                        }
+
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Apertura</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Cierre</td>
+
+                                        @if (item.Expediente.Metedatos != null)
+                                        {
+                                            if (item.Expediente.Metedatos.Exists(x => x.Metadato_Descripcion.Equals("referencia", StringComparison.CurrentCultureIgnoreCase)))
+                                            {
+                                                <td style="text-align: center; vertical-align: middle">@item.Expediente.Metedatos.Find(x => x.Metadato_Descripcion.Equals("referencia", StringComparison.CurrentCultureIgnoreCase)).Metadato_Valor</td>
+                                            }
+                                            else
+                                            {
+                                                <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Expediente_Referencia</td>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Expediente_Referencia</td>
+                                        }
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Administrativo</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Legal</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.FiscalContable</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.AniosTramite</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.AniosConcentracion</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Total</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Reservada</td>
+                                        <td style="text-align: center; vertical-align: middle">@item.Expediente.ExpedienteFolioEdicionTrans.Confidencial</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td colspan="8" class="text-center">@CultureResources.Idioma.Mensaje_SinInformacion</td>
+                                </tr>
+                            }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+
+    <div id="divProsesando" style="display: none">
+        <table style="margin: auto"><tr><td><i class="fa fa-cog fa-spin fa-3x"></i></td><td><span>@CultureResources.Idioma.Mensaje_Progress</span></td></tr></table>
+    </div>
+    <div id="divControles" class="col-lg-12 text-center" style="margin-top: 15px;">
+        @{
+            if (Model.MostrarExportarExcel)
+            {
+                if (ViewBag.EsBaja)
+                {
+                    <a id="btnExportarExcelBaja" class="LinkButton">Exportar registros a excel baja</a>
+                }
+                else
+                {
+                    <a id="btnExportarExcel" class="LinkButton">Exportar registros a excel</a>
+                }
+
+                @*<a id="btnExportarExcel" class="LinkButton">Exportar registros a excel</a>*@
+
+            }
+            if (Model.MostrarGuardar)
+            {
+                @*<a id="btnGuardar" class="LinkButton"> @CultureResources.Idioma2.Trans_Guardar</a>*@
+                <a id="btnGuardar" class="LinkButton">Generar propuesta de inventario</a>
+            }
+            if (Model.MostrarImprimir)
+            {
+                <a id="btnImprimir" class="LinkButton">Exportar a excel</a>
+            }
+            if (Model.MostrarSolicitarAutorizacion)
+            {
+                <a id="btnSoliAutorizacion" class="LinkButton">Solicitar autorización</a>
+            }
+            if (Model.MostrarAutorizar)
+            {
+                <a id="btnAutorizar" class="LinkButton">Autorizar</a>
+            }
+            if (Model.MostrarFirmar)
+            {
+                //<a id="btnFirmar" class="LinkButton">Firmar</a>
+            }
+            if (Model.MostrarTransferir)
+            {
+                <a id="btnTransferir" class="LinkButton">@CultureResources.Idioma2.Trans_Transferir </a>
+            }
+            if (Model.MostrarCancelar)
+            {
+                <a id="btnCancelar" class="LinkButton">@CultureResources.Idioma2.BotonesGenerales_Cancelar&nbsp;@CultureResources.Idioma.Reporte_Folio</a>
+            }
+            if (Model.MostrarCancelarAutorizacion)
+            {
+                <a id="btnCancelarAutorizacion" class="LinkButton">Cancelar autorización</a>
+            }
+        }
+    </div>
+</div>
+
+<div id="popup-cancelado" class="popup" style="display: none;">
+    <div class="content-popup">
+        <div>
+            <br />
+            <h2><strong>Cancelación de Folio</strong></h2>
+            <br />
+        </div>
+        <div class="row">
+            <div class="col-lg-12">Motivo de cancelación</div>
+        </div>
+        <div class="row">
+            <div class="col-lg-12">
+                <textarea id="txtObservaciones" style="width:400px; height:100px"></textarea>
+            </div>
+        </div>
+        <div style="text-align: center; margin-top: 10px;">
+            <a id="aAceptarCancelacion" class="LinkButton">@CultureResources.Idioma2.VisorAceptar</a>
+            <a id="aCancelarCancelacion" class="LinkButton">@CultureResources.Idioma2.VisorCancelar</a>
+        </div>
+    </div>
+</div>
+<div id="popup-firmado" class="popup" style="display: none;">
+    <div class="content-popup">
+        <div>
+            <br />
+            <h2><strong>@CultureResources.Idioma2.VisorSeleccionarFirma</strong></h2>
+            <br />
+
+            <table>
+                <tr>
+                    <td style="width: 100px;">@CultureResources.Idioma2.VisorTipoCertificado:</td>
+                    <td>
+                        <form id="certForm">
+                            <input type="radio" name="signCert" value="cerKey" checked />CER/KEY
+                            <input type="radio" name="signCert" value="pfx" />PFX
+                        </form>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="width: 100px;">@CultureResources.Idioma2.VisorCertificado:</td>
+                    <td><input id="inFirmaCer" type="file" style="width: 260px !important;" accept=".pfx,.cer" /></td>
+                </tr>
+                <tr id="trCerKey">
+                    <td style="width: 100px;">Llave (.key):</td>
+                    <td><input id="inFirmaCerKey" type="file" style="width: 260px !important;" accept=".key" /></td>
+                </tr>
+                <tr>
+                    <td style="width: 100px;">@CultureResources.Idioma2.VisorContraseña:</td>
+                    <td><input id="inFirmaPassword" type="password" style="width: 150px !important;" /></td>
+                </tr>
+                <tr>
+                    <td style="width: 100px;">Raz&oacute;n de la firma (opcional)</td>
+                    <td><input id="inFirmaRazon" type="text" style="width: 150px !important;" /></td>
+                </tr>
+            </table>
+
+            <div style="height: 100px;"></div>
+            <div style="text-align: center; margin-top: 10px;">
+                <a id="aFirmarAceptar" class="LinkButton">@CultureResources.Idioma2.VisorAceptar</a>
+                <a id="aFirmarCancelar" class="LinkButton">@CultureResources.Idioma2.VisorCancelar</a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+        $(document).ready(function () {
+            /*******************************************************/
+            /************* SUMAR CANTIDAD DE CAJAS - PRODECON ****************/
+        const selectedExpedientes = new Set();
+
+        function updateSelectedExpedientes() {
+            selectedExpedientes.clear();
+
+            // Obtiene todos los checkboxes de expediente seleccionados y actualiza el conjunto
+            $('.expediente-checkbox:checked').each(function () {
+                selectedExpedientes.add($(this).data('id'));
+            });
+
+            // Muestra el conteo de IDs únicos en el campo "Cantidad de cajas"
+            $('#txtCaja').val(selectedExpedientes.size);
+
+            // Calculo para peso y longitud. Obtenemos el valor de la tabla cfg_configuracion
+            const pesoXCaja = "@pesoCaja";
+            const metrosXCaja = "@longitudCaja";
+
+            $('#txtKilos').val(selectedExpedientes.size * pesoXCaja);
+            $('#txtMetros').val(selectedExpedientes.size * metrosXCaja);
+        }
+
+        // Ejecuta la función para inicializar el conteo al cargar la página
+        updateSelectedExpedientes();
+
+        // Checkbox de seleccionar/deseleccionar todos
+        $('#chkall').change(function () {
+            cb = $(this);
+            cb.val(cb.prop('checked'));
+            if ($(this).val() == "true") {
+                $(this).closest('table').find('td input:checkbox').prop('checked', true);
+            } else {
+                $(this).closest('table').find('td input:checkbox').prop('checked', false);
+            }
+
+            // Llama a la función para actualizar el conteo de IDs de las cajas
+            updateSelectedExpedientes();
+        });
+
+        // Checkbox individual
+        $('.expediente-checkbox').change(function () {
+            updateSelectedExpedientes();
+        });
+
+        $('input[name="valCaja"]:radio').change(function () {
+            var radioCajaFisica = $('#rtbCajaFisica').is(':checked');
+            var radioCajaSistema = $('#rtbCajaSistema').is(':checked');
+            if (!radioCajaFisica && radioCajaSistema) {
+                $('#rowCajas').toggle();
+            }
+            else {
+                $('#rowCajas').toggle();
+            }
+        });
+
+
+            /************************************/
+            /*************GUARDAR FOLIO****************/
+            $('#btnGuardar').click(function () {
+                var radioCajaFisica = $('#rtbCajaFisica').is(':checked');
+                var kilos = document.getElementById('txtKilos').value;
+                var metros = document.getElementById('txtMetros').value;
+                var pCaja = document.getElementById('txtCaja').value;
+                if (radioCajaFisica) {
+                    if (kilos == "" || metros == "" || pCaja == "") {
+                        MensajeAlert("Se deben capturar los campos Peso, Longitud y Número de Caja", 'DOCFLOW');
+                    } else {
+                        GuardarCambiosFolio();
+                    }
+                } else {
+                    if (kilos == "" || metros == "") {
+                        MensajeAlert("Se deben capturar los campos Peso y Longitud", 'DOCFLOW');
+                    } else {
+                        GuardarCambiosFolio();
+                    }
+                }
+            });
+        /************************************/
+
+            /*************EXPORTAR EXCEL****************/
+            $('#btnExportarExcel').click(function () {
+                //ImprimirDetalleFolio();
+                ExportarExcelFolio();
+            });
+            /*************EXPORTAR EXCEL BAJA****************/
+            $('#btnExportarExcelBaja').click(function () {
+                ExportarExcelFolioBaja();
+            });
+            /************************************/
+            /*************IMPRIMIR FOLIO****************/
+            $('#btnImprimir').click(function () {
+                //ImprimirDetalleFolio();
+                ImprimirEtiquetaFolio();
+            });
+            /************************************/
+            /*************CANCELAR FOLIO****************/
+            $('#btnCancelar').click(function () {
+                $('#popup-cancelado').fadeIn('slow');
+                $('.popup-overlay').fadeIn('slow');
+                $('.popup-overlay').height($(window).height());
+                $('#txtObservaciones').val('');
+            });
+
+            $('#aAceptarCancelacion').click(function () {
+                AceptarCancelacionFolio();
+            });
+
+            $('#aCancelarCancelacion').click(function () {
+                $('#popup-cancelado').fadeOut('slow');
+                $('.popup-overlay').fadeOut('slow');
+            });
+
+            $('#btnSoliAutorizacion').click(function () {
+
+                var rutaRedirect = btdBack.href;
+                PendienteAurorizar(rutaRedirect);
+            });
+
+            $('#btnAutorizar').click(function () {
+
+                var rutaRedirect = btdBack.href;
+                Aurorizar(rutaRedirect);
+            });
+
+            $('#btnCancelarAutorizacion').click(function () {
+
+                var rutaRedirect = btdBack.href;
+                CancelarAutorizacion(rutaRedirect);
+            });
+
+
+            /************************************/
+            /*************TRANSFERIR FOLIO****************/
+            $('#btnTransferir').click(function () {
+                //const queryString = window.location.search;
+                //const urlParams = new URLSearchParams(queryString);
+                //const page_type = urlParams.get('pFase')
+
+                //console.log(page_type);
+                //if (page_type == 'Primaria') {
+
+                    //var rutaRedirect = window.location + '/?Modulo=DFPrimaria';
+                //}
+                //if (page_type == 'Secundaria') {
+
+                  //  var rutaRedirect = window.location + '/?Modulo=DFSecundaria';
+               // }
+
+                var rutaRedirect = btdBack.href;
+                //console.log(rutaRedirect);
+                TransferirFolio(rutaRedirect);
+            });
+            /************************************/
+            /*************FIRMAR FOLIO****************/
+            $('#btnFirmar').click(function () {
+                $('#popup-firmado').fadeIn('slow');
+                $('.popup-overlay').fadeIn('slow');
+                $('.popup-overlay').height($(window).height());
+            });
+
+            $('input[name=signCert]').on('change', function () {
+                if ($('input[name=signCert]:checked').val() == 'pfx')
+                    $('#trCerKey').hide();
+                else
+                    $('#trCerKey').show();
+            });
+            $('#aFirmarAceptar').click(function () {
+                var nivel = $('#hdNivelFirma').val();
+                var usr =@(((Cat_Usuario)Session["Usuario"]).Usuario_Id.Value)
+                FirmarFolio(usr, nivel);
+            });
+            $('#aFirmarCancelar').click(function () {
+                $('#popup-firmado').fadeOut('slow');
+                $('.popup-overlay').fadeOut('slow');
+            });
+            /************************************/
+        });
+</script>
+

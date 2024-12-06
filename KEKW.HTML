@@ -1,0 +1,76 @@
+DECLARE @WORKORDER NVARCHAR(50);
+SET @WORKORDER ='S1575452'; declare @closedate datetime set @closedate = '2024-10-25 18:00:48.447';
+DECLARE @USERID INT
+SET @USERID = 1456
+update bd_DocManager.dbo.RSWORKORDERCUR set CloseDtime = @closedate, UpdtUserID = @USERID, UpdtDtime = GETDATE() where
+WorkorderCode =@WORKORDER
+
+--INSERTO ACTIVITY
+DECLARE @tipowo INT; DECLARE @AccountID INT; DECLARE @Create DATETIME; DECLARE @Requeride DATETIME; DECLARE @Contact
+NVARCHAR(50); DECLARE @AddressLine NVARCHAR(500); DECLARE @AddressLine2 NVARCHAR(500); DECLARE @AddressLine3
+NVARCHAR(500);DECLARE @Phone NVARCHAR(500);DECLARE @Fax NVARCHAR(500);DECLARE @Route NVARCHAR(500);DECLARE @StopGroup
+NVARCHAR(500);DECLARE @Priority INT;DECLARE @ContainerQTY INT;DECLARE @FolderQTY INT;DECLARE @TapeQTY INT;DECLARE
+@CustomerContact NVARCHAR(500);DECLARE @AuthorizedID INT;DECLARE @Printed INT;DECLARE @Picklisted INT;DECLARE @Routed
+INT;DECLARE @Delivered INT;DECLARE @OverrideForceAuthorization INT;DECLARE @UserCreate INT;DECLARE @PONumber
+NVARCHAR(500);
+-- Obtener todos los valores en una sola consulta
+SELECT @tipowo = TypeActionID, @AccountID = AccountID, @Create = CreateDtime, @Requeride = RequiredByDtime, @Contact =
+Contact, @AddressLine = AddressLine1, @AddressLine2 = AddressLine2, @AddressLine3 = AddressLine3, @Phone = Phone, @Fax =
+Fax, @Route = Route, @StopGroup = StopGroup, @Priority = PriorityActionID, @ContainerQTY = ContainerQty, @FolderQTY =
+FilefolderQty, @TapeQTY = TapeQty, @CustomerContact = CustomerContact, @AuthorizedID = AuthorizedID, @Printed = CASE
+WHEN PrintDtime IS NOT NULL THEN 1 ELSE 0 END,@Picklisted = CASE WHEN PicklistDtime IS NOT NULL THEN 1 ELSE 0 END,
+@Routed = CASE WHEN RouteDtime IS NOT NULL THEN 1 ELSE 0 END, @Delivered = CASE WHEN DeliveryDtime IS NOT NULL THEN 1
+ELSE 0 END,@OverrideForceAuthorization = CASE WHEN AuthorizedID IS NOT NULL THEN AuthorizedID ELSE NULL END, @UserCreate
+= CASE WHEN CreateUserID IS NOT NULL THEN CreateUserID ELSE 1 END, @PONumber = PurchaseOrderNumber FROM
+bd_DocManager.dbo.RSWORKORDERCUR WHERE WorkorderCode = @WORKORDER;
+-- Inserción en la bitácora
+INSERT INTO bd_DocManager_WS.dbo.tbl_cat_BitacoraProcesoWorkOrder
+([BitacoraWorkorder_UsuarioLogueado], [BitacoraWorkorder_Proceso], [BitacoraWorkorder_UserCode],
+[BitacoraWorkorder_TypeActionID], [BitacoraWorkorder_AccountID], [BitacoraWorkorder_CreateDtime],
+[BitacoraWorkorder_RequiredByDtime], [BitacoraWorkorder_CloseDtime], [BitacoraWorkorder_Contact],
+[BitacoraWorkorder_AddressLine1], [BitacoraWorkorder_AddressLine2], [BitacoraWorkorder_AddressLine3],
+[BitacoraWorkorder_Phone],[BitacoraWorkorder_Fax], [BitacoraWorkorder_Route], [BitacoraWorkorder_StopGroup],
+[BitacoraWorkorder_PriorityActionID], [BitacoraWorkorder_ContainerQty], [BitacoraWorkorder_FilefolderQty],
+[BitacoraWorkorder_TapeQty], [BitacoraWorkorder_CustomerContact], [BitacoraWorkorder_AuthorizedID],
+[BitacoraWorkorder_Printed], [BitacoraWorkorder_Picklisted], [BitacoraWorkorder_Routed], [BitacoraWorkorder_Delivered],
+[BitacoraWorkorder_OverrideForceAuthorization], [BitacoraWorkorder_CreateUserID],
+[BitacoraWorkorder_ContainerUnitemizedChargeFlag], [BitacoraWorkorder_FilefolderUnitemizedChargeFlag],
+[BitacoraWorkorder_TapeUnitemizedChargeFlag], [BitacoraWorkorder_PONumber], [BitacoraWorkorder_dtUpdateDTime],
+[BitacoraWorkorder_bOverrideAddress], [BitacoraWorkorder_GroupHeadID], [BitacoraWorkorder_FechaProceso])
+VALUES
+('Anathllely Zuñiga Munguia','Modificó la orden de trabajo: '+ @WORKORDER +' de manera exitosa.', 'ZUMUAN',
+@tipowo, -- TypeActionID
+@AccountID, -- AccountID
+@Create, -- CreateDtime
+@Requeride, -- RequiredByDtime
+@closedate, -- CloseDtime
+@Contact, -- Contact
+@AddressLine, -- AddressLine1
+@AddressLine2, -- AddressLine2
+@AddressLine3, -- AddressLine3
+@Phone, -- Phone
+@Fax, -- Fax
+@Route, -- Route
+@StopGroup, -- StopGroup
+@Priority, -- PriorityActionID
+@ContainerQTY, -- ContainerQty
+@FolderQTY, -- FilefolderQty
+@TapeQTY, -- TapeQty
+@CustomerContact, -- CustomerContact
+@AuthorizedID, -- AuthorizedID
+@Printed, -- Printed
+@Picklisted, -- Picklisted
+@Routed, -- Routed
+@Delivered, -- Delivered
+@OverrideForceAuthorization, -- OverrideForceAuthorization
+@UserCreate, -- CreateUserID
+0, -- ContainerUnitemizedChargeFlag
+0, -- FilefolderUnitemizedChargeFlag
+0, -- TapeUnitemizedChargeFlag
+@PONumber, -- PONumber
+GETDATE(), -- dtUpdateDTime
+1, -- bOverrideAddress
+NULL, -- GroupHeadID
+GETDATE() -- FechaProceso
+);
+go
